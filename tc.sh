@@ -15,6 +15,7 @@ if [[ "$debug" > 0 ]]; then
   if [[ "$debug" > 1 ]]; then
     date
     id
+    PATH=$PATH:/usr/sbin/
     echo "PATH=$PATH"
     [[ "$debug" > 2 ]] && printenv
   fi
@@ -59,10 +60,10 @@ start_tc() {
   cut_ip_local
 
   echo "$dev" > "$ipdir"/dev
-
+  
   tc qdisc add dev "$dev" root handle 1: htb
   # tc qdisc add dev "$dev" handle ffff: ingress
-
+  
   tc filter add dev "$dev" parent 1:0 prio 1 protocol ip u32
   tc filter add dev "$dev" parent 1:0 prio 1 handle 2: protocol ip u32 divisor 256
   tc filter add dev "$dev" parent 1:0 prio 1 protocol ip u32 ht 800:: \
@@ -71,12 +72,11 @@ start_tc() {
 
   modprobe ifb numifbs=1
   ip link set dev ifb0 up
-
+  
   tc qdisc add dev "$dev" handle ffff: ingress
   tc filter add dev "$dev" parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
 
   tc qdisc add dev ifb0 root handle 1: htb
-
   tc filter add dev ifb0 parent 1:0 prio 1 protocol ip u32
   tc filter add dev ifb0 parent 1:0 prio 1 handle 3: protocol ip u32 divisor 256
   tc filter add dev ifb0 parent 1:0 prio 1 protocol ip u32 ht 800:: \
@@ -87,13 +87,13 @@ start_tc() {
 stop_tc() {
   [[ "$debug" > 1 ]] && echo "stop_tc()"
 
-  tc qdisc del dev "$dev" root
-  tc qdisc del dev "$dev" handle ffff: ingress
+  sudo tc qdisc del dev "$dev" root
+  sudo tc qdisc del dev "$dev" handle ffff: ingress
 
-  tc qdisc del dev ifb0 root
+  sudo tc qdisc del dev ifb0 root
 
-  ip link set dev ifb0 down
-  rmmod ifb
+  sudo ip link set dev ifb0 down
+  sudo rmmod ifb
 
   [ -e "$ipdir"/dev ] && rm "$ipdir"/dev
 }
@@ -120,21 +120,21 @@ function bwlimit-enable() {
     downrate=1mbit
     uprate=1mbit
   else
-    downrate=10kbit
-    uprate=10kbit
+    downrate=10Mbit
+    uprate=10Mbit
   fi
 
   # Limit traffic from VPN server to client
-  tc class add dev "$dev" parent 1: classid 1:"$classid" htb rate "$downrate"
-  tc filter add dev "$dev" parent 1:0 protocol ip prio 1 \
+  sudo tc class add dev "$dev" parent 1: classid 1:"$classid" htb rate "$downrate"
+  sudo tc filter add dev "$dev" parent 1:0 protocol ip prio 1 \
       handle 2:"${hash}":"${handle}" \
       u32 ht 2:"${hash}": match ip dst "$ip"/32 flowid 1:"$classid"
 
   # Limit traffic from client to VPN server
   # Maybe better use ifb for ingress? See: http://serverfault.com/a/386791/209089
 
-  tc class add dev ifb0 parent 1: classid 1:"$classid" htb rate "$uprate"
-  tc filter add dev ifb0 parent 1:0 protocol ip prio 1 \
+  sudo tc class add dev ifb0 parent 1: classid 1:"$classid" htb rate "$uprate"
+  sudo tc filter add dev ifb0 parent 1:0 protocol ip prio 1 \
       handle 3:"${hash}":"${handle}" \
       u32 ht 3:"${hash}": match ip src "$ip"/32 flowid 1:"$classid"
 
@@ -149,13 +149,13 @@ function bwlimit-disable() {
 
   create_identifiers
 
-  tc filter del dev "$dev" parent 1:0 protocol ip prio 1 \
+  sudo tc filter del dev "$dev" parent 1:0 protocol ip prio 1 \
       handle 2:"${hash}":"${handle}" u32 ht 2:"${hash}":
-  tc class del dev "$dev" classid 1:"$classid"
+  sudo tc class del dev "$dev" classid 1:"$classid"
 
-  tc filter del dev ifb0 parent 1:0 protocol ip prio 1 \
+  sudo tc filter del dev ifb0 parent 1:0 protocol ip prio 1 \
       handle 3:"${hash}":"${handle}" u32 ht 3:"${hash}":
-  tc class del dev ifb0 classid 1:"$classid"
+  sudo tc class del dev ifb0 classid 1:"$classid"
 
   #tc filter del dev "$dev" parent ffff:0 protocol ip prio 1 \
   #    handle 3:"${hash}":"${handle}" u32 ht 3:"${hash}":
