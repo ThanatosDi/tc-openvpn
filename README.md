@@ -19,9 +19,31 @@
 Configuration
 ---
 
-**OpenVPN服務器配置[`/etc/openvpn/tc/conf`](https://github.com/ThanatosDi/tc-openvpn/blob/master/server.conf):**
+**使用者權限配置:**
 
-用正確的IP地址替換最後兩行中的DNS服務器
+<!-- language: bash -->
+
+    sudo visudo
+新增內容
+
+<!-- language: bash -->
+
+    openvpn ALL=NOPASSWD: /usr/sbin/ip,/usr/sbin/tc,/usr/sbin/modprobe,/usr/sbin/rmmod
+    Defaults:openvpn !requiretty
+    
+
+**OpenVPN服務器配置:**
+確保這些內容有在配置檔中
+
+<!-- language: bash -->
+
+    user openvpn
+    group openvpn
+    script-security 3
+    up /etc/openvpn/tc/tc.sh
+    down /etc/openvpn/tc/tc.sh
+    client-connect /etc/openvpn/tc/tc.sh
+    client-disconnect /etc/openvpn/tc/tc.sh
 
 **頻寬控制腳本 [`/etc/openvpn/tc/tc.sh`](https://github.com/rda0/tc-openvpn/blob/master/tc.sh):**
 
